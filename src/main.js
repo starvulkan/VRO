@@ -24,7 +24,7 @@ function drawRobot() {
   ctx.rotate(-robot.heading)
 
   ctx.fillStyle = 'rgba(160, 107, 255, 0.85)'
-  ctx.fillRect(-1 / 2, -w / 2, l, w)
+  ctx.fillRect(-l / 2, -w / 2, l, w)
 
   ctx.fillStyle = '#FF3D9A'
   ctx.fillRect(l / 2 - 8 * view.scale, -w / 2, 8 * view.scale, w)
