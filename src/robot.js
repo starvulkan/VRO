@@ -10,6 +10,9 @@ export function makeRobot(config = {}) {
 
         left: 0,
         right: 0,
+
+        leftTravel: 0,
+        rightTravel: 0,
     }
 }
 
@@ -21,8 +24,20 @@ export function drive(robot, left, right) {
 export function step(robot, dt) {
     const v = (robot.left + robot.right) / 2
     const omega = (robot.right - robot.left) / robot.track
+    const from = robot.heading
+    const to = from + omega * dt
 
-    robot.x += v * Math.cos(robot.heading) * dt
-    robot.y += v * Math.sin(robot.heading) * dt
-    robot.heading += omega * dt
+    if (Math.abs(omega) < 1e-9) {
+        robot.x += v * Math.cos(from) * dt
+        robot.y += v * Math.sin(from) * dt
+    } else {
+        const radius = v / omega
+        robot.x += radius * (Math.sin(to) - Math.sin(from))
+        robot.y -= radius * (Math.cos(to) - Math.cos(from))
+    }
+
+    robot.heading = to
+
+    robot.leftTravel += robot.left * dt
+    robot.rightTravel += robot.right * dt
 }
