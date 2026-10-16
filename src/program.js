@@ -89,7 +89,67 @@ function begin(runner, step) {
             return
         }
 
-        case 'repeat':
-            /* continue here */
+        case 'repeat': {
+            const times = Math.max(0, Math.floor(step.times ?? 0))
+            if (times === 0) return
+
+            runner.stack.push({
+                body: step.body ?? [],
+                index: 0,
+                loop: 'repeat',
+                remaining: times - 1,
+            })
+            return
+        }
+
+        case 'forever': {
+            runner.stack.push({
+                body: step.body ?? [],
+                index: 0,
+                loop: 'forever',
+                remaining: 0,
+            })
+            return
+        }
+
+    }
+}
+
+function finished(runner) {
+    const active = runner.active
+    if (!active) return true
+
+    if (active.kind === 'wait' || active.kind === 'timed') {
+        return runner.clock >= active.until
+    }
+
+    if (active.kind === 'distance') {
+        return travelled(runner.robot, active.from) >= active.target
+    }
+
+    return true
+}
+
+export function advance(runner, dt) {
+    if (runner.done) return
+
+    runner.clock += dt
+
+    let budget = 10000
+
+    while (!runner.done && finished(runner) && budget-- > 0) {
+        if (runner.active && runner.active.kind !== 'wait') {
+            drive(runner.robot, 0, 0)
+        }
+        runner.active = null
+
+        const next = nextStep(runner)
+        if (!next) {
+            runner.done = true
+            drive(runner.robot, 0, 0)
+            return
+        }
+
+        begin(runner, next)
     }
 }
