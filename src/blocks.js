@@ -113,7 +113,7 @@ Blockly.common.defineBlocksWithJsonArray([
 
 export const theme = Blockly.Theme.defineTheme('vro', {
     base: Blockly.Themes.Classic,
-    blockStyle: {
+    blockStyles: {
         vro_events: {
             colourPrimary: '#E6E600',
             colourSecondary: '#FFEA00',
