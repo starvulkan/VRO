@@ -1,155 +1,326 @@
 import { drive } from './robot.js'
 import { setSpeed, setRotationDistance, toDistance, wheelSpeeds, travelled } from './drive.js'
 
-export function makeRunner(robot, base, program = []) {
-    return {
-        robot,
-        base,
-        stack: [{ body: program, index: 0 }],
-        active: null,
-        clock: 0,
-        done: false,
-    }
+const YIELD = Symbol('yield')
+const RAD = Math.PI / 180
+
+const MATH = {
+    abs: Math.abs,
+    floor: Math.floor,
+    ceiling: Math.ceil,
+    sqrt: Math.sqrt,
+    sin: (x) => Math.sin(x * RAD),
+    cos: (x) => Math.cos(x * RAD),
+    tan: (x) => Math.tan(x * RAD),
+    asin: (x) => Math.asin(x) / RAD,
+    acos: (x) => Math.acos(x) / RAD,
+    atan: (x) => Math.atan(x) / RAD,
+    ln: Math.log,
+    log: Math.log10,
+    'e^': Math.exp,
+    '10^': (x) => 10 ** x,
 }
 
-function nextStep(runner) {
-    while (runner.stack.length) {
-        const frame = runner.stack[runner.stack.length - 1]
-
-        if (frame.loop && frame.body.length === 0) {
-            runner.stack.pop()
-            continue
-        }
-
-        if (frame.index < frame.body.length) {
-            return frame.body[frame.index++]
-        }
-
-        if (frame.loop === 'forever') {
-            frame.index = 0
-            continue
-        }
-
-        if (frame.loop === 'repeat' && frame.remaining > 1) {
-            frame.remaining -= 1
-            frame.index = 0
-            continue
-        }
-
-        runner.stack.pop()
-    }
-
-    return null
+export function toNumber(value) {
+    if (typeof value === 'boolean') return value ? 1 : 0
+    const number = Number(value)
+    return Number.isNaN(number) ? 0 : number
 }
 
-function begin(runner, step) {
-    const { robot, base } = runner
+export function truthy(value) {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'number') return value !== 0 && !Number.isNaN(value)
+    const text = String(value).trim().toLowerCase()
+    return text !== '' && text !== '0' && text !== 'false'
+}
 
-    switch (step.op) {
-        case 'setSpeed':
-            setSpeed(base, step.percent)
-            return
+function blank(value) {
+    return typeof value === 'string' && value.trim() === ''
+}
+
+function compare(a, b) {
+    const x = Number(a)
+    const y = Number(b)
+    if (!blank(a) && !blank(b) && !Number.isNaN(x) && !Number.isNaN(y)) return x - y
+
+    const s = String(a).toLowerCase()
+    const t = String(b).toLowerCase()
+    return s < t ? -1 : s > t ? 1 : 0
+}
+
+function random(low, high) {
+    const lo = Math.min(low, high)
+    const hi = Math.max(low, high)
+    if (Number.isInteger(lo) && Number.isInteger(hi)) {
+        return lo + Math.floor(Math.random() * (hi - lo + 1))
+    }
+    return lo + Math.random() * (hi - lo)
+}
+
+function tidy(value) {
+    return Math.round(value * 1e10) / 1e10
+}
+
+export function evaluate(runner, e) {
+    if (!e) return 0
+
+    const v = (x) => evaluate(runner, x)
+    const n = (x) => toNumber(evaluate(runner, x))
+
+    switch (e.r) {
+        case 'n':
+        case 't':
+            return e.v
+        case 'var':
+            return runner.vars.get(e.name) ?? 0
+        case 'timer':
+            return runner.clock - runner.timerStart
+
+        case 'add':
+            return n(e.a) + n(e.b)
+        case 'sub':
+            return n(e.a) - n(e.b)
+        case 'mul':
+            return n(e.a) * n(e.b)
+        case 'div':
+            return n(e.a) / n(e.b)
+        case 'mod': {
+            const a = n(e.a)
+            const b = n(e.b)
+            return ((a % b) + b) % b
+        }
+        case 'round':
+            return Math.round(n(e.a))
+        case 'math': {
+            const fn = MATH[e.fn]
+            return fn ? tidy(fn(n(e.a))) : 0
+        }
+        case 'random':
+            return random(n(e.a), n(e.b))
+
+        case 'gt':
+            return compare(v(e.a), v(e.b)) > 0
+        case 'lt':
+            return compare(v(e.a), v(e.b)) < 0
+        case 'eq':
+            return compare(v(e.a), v(e.b)) === 0
+        case 'and':
+            return truthy(v(e.a)) && truthy(v(e.b))
+        case 'or':
+            return truthy(v(e.a)) || truthy(v(e.b))
+        case 'not':
+            return !truthy(v(e.a))
+        case 'between': {
+            const x = n(e.a)
+            const lo = Math.min(n(e.b), n(e.c))
+            const hi = Math.max(n(e.b), n(e.c))
+            return x >= lo && x <= hi
+        }
+
+        case 'join':
+            return String(v(e.a)) + String(v(e.b))
+        case 'letter':
+            return String(v(e.b))[Math.floor(n(e.a)) - 1] ?? ''
+        case 'length':
+            return String(v(e.a)).length
+        case 'contains':
+            return String(v(e.a)).toLowerCase().includes(String(v(e.b)).toLowerCase())
         
-        case 'setRotationDistance':
-            setRotationDistance(base, step.cm)
-            return
-
-        case 'stopMoving':
-            drive(robot, 0, 0)
-            return
-
-        case 'startMoving':
-        case 'startMovingSteering': {
-            const steering = step.op === 'startMovingSteering' ? step.steering : 0
-            const [left, right] = wheelSpeeds(base, steering, step.direction === 'back')
-            drive(robot, left, right)
-            return
-        }
-
-        case 'wait':
-            runner.active = { kind: 'wait', until: runner.clock + Math.max(0, step.seconds) }
-            return
-
-        case 'move':
-        case 'moveSteering': {
-            const steering = step.op === 'moveSteering' ? step.steering : 0
-            const [left, right] = wheelSpeeds(base, steering, step.direction === 'back')
-            drive(robot, left, right)
-
-            if (step.unit === 'seconds') {
-                runner.active = { kind: 'timed', until: runner.clock + Math.max(0, step.amount) }
-                return
-            }
-
-            runner.active = {
-                kind: 'distance',
-                target: Math.abs(toDistance(base, step.amount, step.unit)),
-                from: { leftTravel: robot.leftTravel, rightTravel: robot.rightTravel }
-            }
-            return
-        }
-
-        case 'repeat': {
-            const times = Math.max(0, Math.floor(step.times ?? 0))
-            if (times === 0) return
-
-            runner.stack.push({
-                body: step.body ?? [],
-                index: 0,
-                loop: 'repeat',
-                remaining: times,
-            })
-            return
-        }
-
-        case 'forever': {
-            runner.stack.push({
-                body: step.body ?? [],
-                index: 0,
-                loop: 'forever',
-                remaining: 0,
-            })
-            return
-        }
-
+        default:
+            return 0
     }
 }
 
-function finished(runner) {
-    const active = runner.active
-    if (!active) return true
+export function makeRunner(robot, base, program) {
+  return {
+    robot,
+    base,
+    threads: program.stacks.map((body) => ({
+      stack: [{ kind: 'seq', body, index: 0 }],
+      active: null,
+      done: false,
+    })),
+    vars: new Map(),
+    clock: 0,
+    timerStart: 0,
+    done: false,
+  }
+}
 
-    if (active.kind === 'wait' || active.kind === 'timed') {
-        return runner.clock >= active.until
+function nextStep(runner, thread) {
+  while (thread.stack.length > 0) {
+    const frame = thread.stack[thread.stack.length - 1]
+
+    if (frame.index < frame.body.length) return frame.body[frame.index++]
+
+    if (frame.kind === 'forever') {
+      frame.index = 0
+      return YIELD
+    }
+    if (frame.kind === 'repeat' && frame.remaining > 1) {
+      frame.remaining -= 1
+      frame.index = 0
+      return YIELD
+    }
+    if (frame.kind === 'until' && !truthy(evaluate(runner, frame.cond))) {
+      frame.index = 0
+      return YIELD
     }
 
-    if (active.kind === 'distance') {
-        return travelled(runner.robot, active.from) >= active.target
+    thread.stack.pop()
+  }
+  return null
+}
+
+function begin(runner, thread, cmd) {
+  const { robot, base } = runner
+  const num = (e) => toNumber(evaluate(runner, e))
+
+  switch (cmd.op) {
+    case 'setSpeed':
+      setSpeed(base, num(cmd.percent))
+      return
+    case 'setRotationDistance':
+      setRotationDistance(base, num(cmd.cm))
+      return
+    case 'stopMoving':
+      drive(robot, 0, 0)
+      return
+    case 'startMoving':
+      drive(robot, ...wheelSpeeds(base, 0, cmd.direction === 'back'))
+      return
+    case 'startMovingSteering':
+      drive(robot, ...wheelSpeeds(base, num(cmd.steering)))
+      return
+
+    case 'move':
+    case 'moveSteering': {
+      const steering = cmd.op === 'moveSteering' ? num(cmd.steering) : 0
+      const amount = num(cmd.amount)
+      const backwards = (cmd.direction === 'back') !== (amount < 0)
+
+      drive(robot, ...wheelSpeeds(base, steering, backwards))
+
+      if (cmd.unit === 'seconds') {
+        thread.active = { kind: 'timed', until: runner.clock + Math.abs(amount) }
+      } else {
+        thread.active = {
+          kind: 'distance',
+          target: Math.abs(toDistance(base, amount, cmd.unit)),
+          from: { leftTravel: robot.leftTravel, rightTravel: robot.rightTravel },
+        }
+      }
+      return
     }
 
-    return true
+    case 'wait':
+      thread.active = { kind: 'wait', until: runner.clock + Math.max(0, num(cmd.seconds)) }
+      return
+    case 'waitUntil':
+      thread.active = { kind: 'until', cond: cmd.cond }
+      return
+
+    case 'repeat': {
+      const times = Math.floor(num(cmd.times))
+      if (times > 0) thread.stack.push({ kind: 'repeat', body: cmd.body, index: 0, remaining: times })
+      return
+    }
+    case 'forever':
+      thread.stack.push({ kind: 'forever', body: cmd.body, index: 0 })
+      return
+    case 'repeatUntil':
+      if (!truthy(evaluate(runner, cmd.cond))) {
+        thread.stack.push({ kind: 'until', body: cmd.body, index: 0, cond: cmd.cond })
+      }
+      return
+    case 'if':
+      if (truthy(evaluate(runner, cmd.cond))) {
+        thread.stack.push({ kind: 'seq', body: cmd.body, index: 0 })
+      }
+      return
+    case 'ifElse': {
+      const body = truthy(evaluate(runner, cmd.cond)) ? cmd.body : cmd.other
+      thread.stack.push({ kind: 'seq', body, index: 0 })
+      return
+    }
+
+    case 'stop':
+      if (cmd.what === 'all') {
+        for (const other of runner.threads) other.done = true
+        runner.done = true
+        drive(robot, 0, 0)
+      } else {
+        thread.done = true
+      }
+      return
+    case 'stopOthers':
+      for (const other of runner.threads) {
+        if (other !== thread) other.done = true
+      }
+      return
+
+    case 'set':
+      runner.vars.set(cmd.name, evaluate(runner, cmd.value))
+      return
+    case 'change':
+      runner.vars.set(cmd.name, toNumber(runner.vars.get(cmd.name) ?? 0) + num(cmd.by))
+      return
+    case 'resetTimer':
+      runner.timerStart = runner.clock
+      return
+  }
+}
+
+function finished(runner, thread) {
+  const active = thread.active
+  if (!active) return true
+
+  if (active.kind === 'wait' || active.kind === 'timed') {
+    return runner.clock >= active.until
+  }
+  if (active.kind === 'distance') {
+    return travelled(runner.robot, active.from) >= active.target
+  }
+  if (active.kind === 'until') {
+    return truthy(evaluate(runner, active.cond))
+  }
+  return true
+}
+
+function tick(runner, thread) {
+  let budget = 10000
+
+  while (!thread.done && budget-- > 0) {
+    if (!finished(runner, thread)) return
+
+    const kind = thread.active?.kind
+    if (kind === 'timed' || kind === 'distance') drive(runner.robot, 0, 0)
+    thread.active = null
+
+    const cmd = nextStep(runner, thread)
+    if (cmd === YIELD) return
+    if (!cmd) {
+      thread.done = true
+      return
+    }
+
+    begin(runner, thread, cmd)
+    if (runner.done) return
+  }
 }
 
 export function advance(runner, dt) {
+  if (runner.done) return
+
+  runner.clock += dt
+
+  for (const thread of runner.threads) {
+    if (!thread.done) tick(runner, thread)
     if (runner.done) return
+  }
 
-    runner.clock += dt
-
-    let budget = 10000
-
-    while (!runner.done && finished(runner) && budget-- > 0) {
-        if (runner.active && runner.active.kind !== 'wait') {
-            drive(runner.robot, 0, 0)
-        }
-        runner.active = null
-
-        const next = nextStep(runner)
-        if (!next) {
-            runner.done = true
-            drive(runner.robot, 0, 0)
-            return
-        }
-
-        begin(runner, next)
-    }
+  if (runner.threads.every((thread) => thread.done)) {
+    runner.done = true
+    drive(runner.robot, 0, 0)
+  }
 }
