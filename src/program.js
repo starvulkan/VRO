@@ -1,4 +1,4 @@
-import { drive, step } from './robot.js'
+import { drive } from './robot.js'
 import { setSpeed, setRotationDistance, toDistance, wheelSpeeds, travelled } from './drive.js'
 
 export function makeRunner(robot, base, program = []) {
@@ -97,7 +97,7 @@ function begin(runner, step) {
                 body: step.body ?? [],
                 index: 0,
                 loop: 'repeat',
-                remaining: times - 1,
+                remaining: times,
             })
             return
         }

@@ -1,18 +1,10 @@
 import './style.css'
 import { MAT, makeView, loadImage } from './mat.js'
-import { makeRobot, step } from './robot.js'
+import { makeRobot, drive, step } from './robot.js'
 import { makeDrivebase } from './drive.js'
 import { makeRunner, advance } from './program.js'
 
-const canvas = document.querySelector('#field')
-canvas.width = 2362
-canvas.height = 1143
-
-const ctx = canvas.getContext('2d')
-const view = makeView(canvas)
-
-const robot = makeRobot({ x: 1181, y: 120, heading: Math.PI / 2 })
-const base = makeDrivebase()
+const START = { x: 1181, y: 120, heading: Math.PI / 2 }
 
 const program = [
   { op: 'setSpeed', percent: 60 },
@@ -26,7 +18,49 @@ const program = [
   },
 ]
 
-const runner = makeRunner(robot, base, program)
+const canvas = document.querySelector('#field')
+canvas.width = 2362
+canvas.height = 1143
+
+const ctx = canvas.getContext('2d')
+const view = makeView(canvas)
+
+const runButton = document.querySelector('#run')
+const stopButton = document.querySelector('#stop')
+const resetButton = document.querySelector('#reset')
+const statusText = document.querySelector('#status')
+
+let robot = makeRobot(START)
+let runner = null
+let running = false
+
+function show(text) {
+  statusText.textContent = text
+  runButton.disabled = running
+  stopButton.disabled = !running
+}
+
+function run() {
+  if (running) return
+  runner = makeRunner(robot, makeDrivebase(), program)
+  running = true
+  show('Running')
+}
+
+function stop(text = 'Stopped') {
+  running = false
+  drive(robot, 0, 0)
+  show(text)
+}
+
+function reset() {
+  stop('Ready')
+  robot = makeRobot(START)
+}
+
+runButton.addEventListener('click', run)
+stopButton.addEventListener('click', () => stop())
+resetButton.addEventListener('click', reset)
 
 const mat = await loadImage(MAT.image)
 
@@ -54,7 +88,10 @@ function frame(now) {
   const dt = Math.min((now - last) / 1000, 0.05)
   last = now
 
-  advance(runner, dt)
+  if (running) {
+    advance(runner, dt)
+    if (runner.done) stop('Finished')
+  }
   step(robot, dt)
 
   ctx.drawImage(mat, 0, 0, canvas.width, canvas.height)
@@ -63,4 +100,5 @@ function frame(now) {
   requestAnimationFrame(frame)
 }
 
+show('Ready')
 requestAnimationFrame(frame)
