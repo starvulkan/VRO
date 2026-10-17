@@ -3,20 +3,11 @@ import { MAT, makeView, loadImage } from './mat.js'
 import { makeRobot, drive, step } from './robot.js'
 import { makeDrivebase } from './drive.js'
 import { makeRunner, advance } from './program.js'
+import { mountEditor } from './editor.js'
 
 const START = { x: 1181, y: 120, heading: Math.PI / 2 }
 
-const program = [
-  { op: 'setSpeed', percent: 60 },
-  {
-    op: 'repeat',
-    times: 4,
-    body: [
-      { op: 'move', amount: 40, unit: 'cm' },
-      { op: 'moveSteering', amount: 90, unit: 'degrees', steering: 100 },
-    ],
-  },
-]
+const editor = mountEditor(document.querySelector('#editor'))
 
 const canvas = document.querySelector('#field')
 canvas.width = 2362
@@ -42,6 +33,13 @@ function show(text) {
 
 function run() {
   if (running) return
+
+  const program = editor.program()
+  if (!program) {
+    show('Add a "when program starts" block')
+    return
+  }
+
   runner = makeRunner(robot, makeDrivebase(), program)
   running = true
   show('Running')

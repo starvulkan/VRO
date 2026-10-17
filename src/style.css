@@ -12,16 +12,15 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
   background: var(--ink);
   color: var(--text);
   font-family: system-ui, sans-serif;
 }
 
 .stage {
-  width: min(96vw, 1400px);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   padding: 1rem;
 }
 
@@ -64,8 +63,25 @@ body {
   opacity: 0.7;
 }
 
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(380px, 2fr) 3fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.editor {
+  min-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
 canvas {
   display: block;
+  align-self: start;
   width: 100%;
   height: auto;
   border: 1px solid var(--line);
