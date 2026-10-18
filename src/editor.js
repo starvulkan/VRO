@@ -1,5 +1,5 @@
 import * as Blockly from 'blockly'
-import { theme, toolbox, starter } from './blocks.js'
+import { theme, toolbox, starter, variablesFlyout } from './blocks.js'
 
 const SAVE_KEY = 'vro:workspace:v2'
 
@@ -149,6 +149,11 @@ export function mountEditor(element) {
     media: './blockly-media/',
     trashcan: true,
     zoom: { controls: true, wheel: true, startScale: 0.75 },
+  })
+
+  workspace.registerToolboxCategoryCallback('VRO_VARIABLES', variablesFlyout)
+  workspace.registerButtonCallback('CREATE_VARIABLE', (button) => {
+    Blockly.Variables.createVariableButtonHandler(button.getTargetWorkspace())
   })
 
   load(workspace)

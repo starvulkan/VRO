@@ -266,9 +266,30 @@ export const toolbox = {
       kind: 'category',
       name: 'Variables',
       categorystyle: 'vro_variables',
-      custom: 'VARIABLE',
+      custom: 'VRO_VARIABLES',
     },
   ],
+}
+
+export function variablesFlyout(workspace) {
+  const variables = workspace
+    .getVariableMap()
+    .getVariablesOfType('')
+    .sort((a, b) => a.getName().localeCompare(b.getName()))
+
+  const contents = [{ kind: 'button', text: 'Make a Variable', callbackkey: 'CREATE_VARIABLE' }]
+  if (variables.length === 0) return contents
+
+  const first = { VAR: { id: variables[0].getId() } }
+  contents.push(
+    { kind: 'block', type: 'variables_set', fields: first, inputs: { VALUE: txt('0') } },
+    { kind: 'block', type: 'math_change', fields: first, inputs: { DELTA: num(1) } },
+  )
+
+  for (const variable of variables) {
+    contents.push({ kind: 'block', type: 'variables_get', fields: { VAR: { id: variable.getId() } } })
+  }
+  return contents
 }
 
 export const starter = {
