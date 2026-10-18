@@ -1,8 +1,10 @@
 import { drive } from './robot.js'
 import { setSpeed, setRotationDistance, toDistance, wheelSpeeds, travelled } from './drive.js'
+import { procedures } from 'blockly'
 
 const YIELD = Symbol('yield')
 const RAD = Math.PI / 180
+const YAW_SIGN = 1
 
 const MATH = {
     abs: Math.abs,
@@ -61,6 +63,20 @@ function tidy(value) {
     return Math.round(value * 1e10) / 1e10
 }
 
+function scopeOf(runner, name) {
+  const stack = runner.current?.stack ?? []
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const scope = stack[i].scope
+    if (scope) return scope.has(name) ? scope : runner.vars
+  }
+  return runner.vars
+}
+
+function yaw(runner) {
+  const degrees = ((runner.robot.heading - runner.yawZero) / RAD) * YAW_SIGN
+  return Math.round(((((degrees + 180) % 360) + 360) % 360) - 180)
+}
+
 export function evaluate(runner, e) {
     if (!e) return 0
 
@@ -72,9 +88,11 @@ export function evaluate(runner, e) {
         case 't':
             return e.v
         case 'var':
-            return runner.vars.get(e.name) ?? 0
+          return scopeOf(runner, e.name).get(e.name) ?? 0
         case 'timer':
-            return runner.clock - runner.timerStart
+          return runner.clock - runner.timerStart
+        case 'angle':
+          return e.axis === 'yaw' ? yaw(runner) : 0
 
         case 'add':
             return n(e.a) + n(e.b)
@@ -140,9 +158,12 @@ export function makeRunner(robot, base, program) {
       active: null,
       done: false,
     })),
+    procedures: program.procedures ?? {},
     vars: new Map(),
     clock: 0,
     timerStart: 0,
+    yawZero: robot.heading,
+    current: null,
     done: false,
   }
 }
@@ -249,6 +270,10 @@ function begin(runner, thread, cmd) {
         for (const other of runner.threads) other.done = true
         runner.done = true
         drive(robot, 0, 0)
+      } else if (cmd.what === 'exit') {
+        while (thread.stack.length > 0) {
+          if (thread.stack.pop().kind === 'call') break
+        }
       } else {
         thread.done = true
       }
@@ -260,14 +285,28 @@ function begin(runner, thread, cmd) {
       return
 
     case 'set':
-      runner.vars.set(cmd.name, evaluate(runner, cmd.value))
+      scopeOf(runner, cmd.name).set(cmd.name, evaluate(runner, cmd.value))
       return
-    case 'change':
-      runner.vars.set(cmd.name, toNumber(runner.vars.get(cmd.name) ?? 0) + num(cmd.by))
+    case 'change': {
+      const scope = scopeOf(runner, cmd.name)
+      scope.set(cmd.name, toNumber(scope.get(cmd.name) ?? 0) + num(cmd.by))
       return
+    }
     case 'resetTimer':
       runner.timerStart = runner.clock
       return
+    case 'setYaw':
+      runner.yawZero = robot.heading - num(cmd.value) * YAW_SIGN * RAD
+      return
+
+    case 'call': {
+      const procedure = runner.procedures[cmd.name]
+      if (!procedure || thread.stack.length > 200) return
+
+      const scope = new Map(procedure.params.map((id, i) => [id, evaluate(runner, cmd.args[i])]))
+      thread.stack.push({ kind: 'call', body: procedure.body, index: 0, scope })
+      return
+    }
   }
 }
 
@@ -289,6 +328,7 @@ function finished(runner, thread) {
 
 function tick(runner, thread) {
   let budget = 10000
+  runner.current = thread
 
   while (!thread.done && budget-- > 0) {
     if (!finished(runner, thread)) return

@@ -1,5 +1,5 @@
 import * as Blockly from 'blockly'
-import { theme, toolbox, starter, variablesFlyout } from './blocks.js'
+import { theme, toolbox, starter, variablesFlyout, myBlocksFlyout } from './blocks.js'
 
 const SAVE_KEY = 'vro:workspace:v2'
 
@@ -60,20 +60,36 @@ function expression(block) {
     switch (block.type) {
         case 'vro_number':
         case 'math_number':
-            return { r: 'n', v: Number(block.getFieldValue('NUM')) }
+          return { r: 'n', v: Number(block.getFieldValue('NUM')) }
         case 'vro_text':
-            return { r: 't', v: block.getFieldValue('TEXT') }
+          return { r: 't', v: block.getFieldValue('TEXT') }
         case 'variables_get':
-            return { r: 'var', name: block.getFieldValue('VAR') }
+          return { r: 'var', name: block.getFieldValue('VAR') }
         case 'vro_timer':
-            return { r: 'timer' }
+          return { r: 'timer' }
+        case 'vro_angle':
+          return { r: 'angle', axis: block.getFieldValue('AXIS') }
         case 'vro_math':
-            return { r: 'math', fn: block.getFieldValue('FN'), a: input(block, 'A') }
+          return { r: 'math', fn: block.getFieldValue('FN'), a: input(block, 'A') }
     }
 
     const r = OPERATORS[block.type]
     if (!r) return null
     return { r, a: input(block, 'A'), b: input(block, 'B'), c: input(block, 'C') }
+}
+
+function argumentsOf(block) {
+  return block.inputList.map((input) => input.name).filter((name) => name.startsWith('ARG'))
+}
+
+function fillArguments(workspace) {
+  for (const block of workspace.getBlocksByType('procedures_callnoreturn', false)) {
+    if (!block.getInputsInline()) block.setInputsInline(true)
+    for (const name of argumentsOf(block)) {
+      const connection = block.getInput(name).connection
+      if (!connection.targetBlock()) connection.setShadowState({ type: 'vro_text', fields: { TEXT: '' } })
+    }
+  }
 }
 
 function compileStack(block) {
@@ -130,6 +146,11 @@ function compileBlock(block) {
 
     case 'vro_reset_timer':
       return { op: 'resetTimer' }
+    case 'vro_set_yaw':
+      return { op: 'setYaw', value: value('VALUE') }
+
+    case 'procedures_callnoreturn':
+      return { op: 'call', name: block.getProcedureCall(), args: argumentsOf(block).map((name) => value(name)) }
 
     case 'variables_set':
       return { op: 'set', name: field('VAR'), value: value('VALUE') }
@@ -152,6 +173,7 @@ export function mountEditor(element) {
   })
 
   workspace.registerToolboxCategoryCallback('VRO_VARIABLES', variablesFlyout)
+  workspace.registerToolboxCategoryCallback('VRO_MYBLOCKS', myBlocksFlyout)
   workspace.registerButtonCallback('CREATE_VARIABLE', (button) => {
     Blockly.Variables.createVariableButtonHandler(button.getTargetWorkspace())
   })
@@ -159,19 +181,31 @@ export function mountEditor(element) {
   load(workspace)
 
   workspace.addChangeListener((event) => {
-    if (!event.isUiEvent) save(workspace)
+    if (event.isUiEvent) return
+    fillArguments(workspace)
+    save(workspace)
   })
 
   new ResizeObserver(() => Blockly.svgResize(workspace)).observe(element)
 
   return {
     program() {
-      const stacks = workspace
-        .getTopBlocks(true)
-        .filter((block) => block.type === 'vro_start' && block.isEnabled())
+      const top = workspace.getTopBlocks(true).filter((block) => block.isEnabled())
+
+      const stacks = top
+        .filter((block) => block.type === 'vro_start')
         .map((block) => compileStack(block.getNextBlock()))
 
-      return stacks.length > 0 ? { stacks } : null
+      const procedures = {}
+      for (const block of top) {
+        if (block.type !== 'procedures_defnoreturn') continue
+        procedures[block.getFieldValue('NAME')] = {
+          params: block.getVarModels().map((variable) => variable.getId()),
+          body: compileStack(block.getInputTargetBlock('STACK')),
+        }
+      }
+
+      return stacks.length > 0 ? { stacks, procedures } : null
     },
 
     state() {

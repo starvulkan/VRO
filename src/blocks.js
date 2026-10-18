@@ -1,5 +1,8 @@
 import * as Blockly from 'blockly'
 
+Blockly.Msg.PROCEDURES_DEFNORETURN_TITLE = 'define'
+Blockly.Msg.PROCEDURES_DEFNORETURN_PROCEDURE = 'my block'
+
 const UNITS = [
   ['cm', 'cm'],
   ['inches', 'inches'],
@@ -118,7 +121,7 @@ Blockly.common.defineBlocksWithJsonArray([
   {
     type: 'vro_stop',
     message0: 'stop %1',
-    args0: [dropdown('WHAT', [['all', 'all'], ['this stack', 'this']])],
+    args0: [dropdown('WHAT', [['all', 'all'], ['this stack', 'this'], ['exit block', 'exit']])],
     previousStatement: null,
     style: 'vro_control',
   },
@@ -127,6 +130,10 @@ Blockly.common.defineBlocksWithJsonArray([
   // sensors 
   reporter('vro_timer', 'timer', [], 'vro_sensors'),
   command('vro_reset_timer', 'reset timer', [], 'vro_sensors'),
+
+  // yaw angle
+  reporter('vro_angle', '%1 angle', [dropdown('AXIS', [['yaw', 'yaw'], ['pitch', 'pitch'], ['roll', 'roll']])], 'vro_sensors'),
+  command('vro_set_yaw', 'set yaw angle to %1', [slot('VALUE')], 'vro_sensors'),
 
   // operators
   reporter('vro_add', '%1 + %2', [slot('A'), slot('B')]),
@@ -160,6 +167,7 @@ export const theme = Blockly.Theme.defineTheme('vro', {
     vro_operators: { colourPrimary: '#59C059', colourSecondary: '#46B946', colourTertiary: '#389438' },
     variable_blocks: { colourPrimary: '#FF8C1A', colourSecondary: '#FF8000', colourTertiary: '#DB6E00' },
     math_blocks: { colourPrimary: '#59C059', colourSecondary: '#46B946', colourTertiary: '#389438' },
+    procedure_blocks: { colourPrimary: '#FF6680', colourSecondary: '#FF4D6A', colourTertiary: '#E64D66' },
   },
   categoryStyles: {
     vro_events: { colour: '#FFBF00' },
@@ -168,6 +176,7 @@ export const theme = Blockly.Theme.defineTheme('vro', {
     vro_sensors: { colour: '#4CBFE6' },
     vro_operators: { colour: '#59C059' },
     vro_variables: { colour: '#FF8C1A' },
+    vro_myblocks: { colour: '#FF6680' },
   },
   componentStyles: {
     workspaceBackgroundColour: '#0B0910',
@@ -234,7 +243,12 @@ export const toolbox = {
       kind: 'category',
       name: 'Sensors',
       categorystyle: 'vro_sensors',
-      contents: [block('vro_timer'), block('vro_reset_timer')],
+      contents: [
+        block('vro_angle'),
+        block('vro_set_yaw', { VALUE: num(0) }),
+        block('vro_timer'),
+        block('vro_reset_timer'),
+      ],
     },
     {
       kind: 'category',
@@ -268,6 +282,12 @@ export const toolbox = {
       categorystyle: 'vro_variables',
       custom: 'VRO_VARIABLES',
     },
+    {
+      kind: 'category',
+      name: 'My Blocks',
+      categorystyle: 'vro_myblocks',
+      custom: 'VRO_MYBLOCKS',
+    },
   ],
 }
 
@@ -288,6 +308,17 @@ export function variablesFlyout(workspace) {
 
   for (const variable of variables) {
     contents.push({ kind: 'block', type: 'variables_get', fields: { VAR: { id: variable.getId() } } })
+  }
+  return contents
+}
+
+export function myBlocksFlyout(workspace) {
+  const contents = [{ kind: 'block', type: 'procedures_defnoreturn', fields: { NAME: 'my block' } }]
+  const [procedures] = Blockly.Procedures.allProcedures(workspace)
+
+  for (const [name, params] of procedures) {
+    const inputs = Object.fromEntries(params.map((_, i) => [`ARG${i}`, txt('')]))
+    contents.push({ kind: 'block', type: 'procedures_callnoreturn', extraState: { name, params }, inputs, inline: true })
   }
   return contents
 }
