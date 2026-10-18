@@ -168,5 +168,28 @@ export function mountEditor(element) {
 
       return stacks.length > 0 ? { stacks } : null
     },
+
+    state() {
+        return Blockly.serialization.workspaces.save(workspace)
+    },
+
+    replace(state) {
+        const previous = Blockly.serialization.workspaces.save(workspace)
+        try {
+            Blockly.serialization.workspaces.load(state, workspace)
+        } catch (error) {
+            workspace.clear()
+            Blockly.serialization.workspaces.load(previous, workspace)
+            throw new Error('This program has blocks this version of VRO does not know.')
+        }
+        workspace.clearUndo()
+        save(workspace)
+    },
+
+    onChange(fn) {
+        workspace.addChangeListener((event) => {
+            if (!event.isUiEvent) fn()
+        })
+    },
   }
 }

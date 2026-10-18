@@ -4,8 +4,10 @@ import { makeRobot, drive, step } from './robot.js'
 import { makeDrivebase } from './drive.js'
 import { makeRunner, advance } from './program.js'
 import { mountEditor } from './editor.js'
+import { UNTITLED, blank, unpack, saveFile, openFile } from './files.js'
 
 const START = { x: 1181, y: 120, heading: Math.PI / 2 }
+const FILE_KEY = 'vro:file'
 
 const editor = mountEditor(document.querySelector('#editor'))
 
@@ -19,6 +21,11 @@ const view = makeView(canvas)
 const runButton = document.querySelector('#run')
 const stopButton = document.querySelector('#stop')
 const resetButton = document.querySelector('#reset')
+const newButton = document.querySelector('#new')
+const openButton = document.querySelector('#open')
+const saveButton = document.querySelector('#save')
+const saveAsButton = document.querySelector('#save-as')
+const fileText = document.querySelector('#file')
 const statusText = document.querySelector('#status')
 
 let robot = makeRobot(START)
@@ -59,6 +66,96 @@ function reset() {
 runButton.addEventListener('click', run)
 stopButton.addEventListener('click', () => stop())
 resetButton.addEventListener('click', reset)
+
+const current = () => JSON.stringify(editor.state())
+
+function recall() {
+  try {
+    return JSON.parse(localStorage.getItem(FILE_KEY))
+  } catch (error) {
+    return null
+  }
+}
+
+let file = { name: UNTITLED, handle: null, snapshot: current(), ...recall() }
+
+function remember() {
+  try {
+    localStorage.setItem(FILE_KEY, JSON.stringify({ name: file.name, snapshot: file.snapshot }))
+  } catch (error) {
+    console.warn('files: could not remember the open file', error)
+  }
+}
+
+function dirty() {
+  return current() !== file.snapshot
+}
+
+function showFile() {
+  const mark = dirty() ? ' •' : ''
+  fileText.textContent = `${file.name}.vro${mark}`
+  document.title = `${file.name}${mark} — VRO`
+}
+
+function settle(name, handle) {
+  file = { name, handle, snapshot: current() }
+  remember()
+  showFile()
+}
+
+function discardOk() {
+  return !dirty() || window.confirm(`Discard unsaved changes to ${file.name}.vro?`)
+}
+
+function newProgram() {
+  if (!discardOk()) return
+  reset()
+  editor.replace(blank)
+  settle(UNTITLED, null)
+}
+
+async function openProgram() {
+  if (!discardOk()) return
+  try {
+    const picked = await openFile()
+    if (!picked) return
+    editor.replace(unpack(picked.text))
+    reset()
+    settle(picked.name, picked.handle)
+  } catch (error) {
+    window.alert(error.message)
+  }
+}
+
+async function saveProgram(as = false) {
+  try {
+    const saved = await saveFile(editor.state(), { name: file.name, handle: file.handle, as })
+    if (saved) settle(saved.name, saved.handle)
+  } catch (error) {
+    window.alert(`Could not save: ${error.message}`)
+  }
+}
+
+newButton.addEventListener('click', newProgram)
+openButton.addEventListener('click', openProgram)
+saveButton.addEventListener('click', () => saveProgram())
+saveAsButton.addEventListener('click', () => saveProgram(true))
+editor.onChange(showFile)
+
+window.addEventListener('keydown', (event) => {
+  if (!(event.metaKey || event.ctrlKey)) return
+  const key = event.key.toLowerCase()
+
+  if (key === 's') {
+    event.preventDefault()
+    saveProgram(event.shiftKey)
+  } else if (key === 'o') {
+    event.preventDefault()
+    openProgram()
+  }
+})
+
+showFile()
 
 const mat = await loadImage(MAT.image)
 
