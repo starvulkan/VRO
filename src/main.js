@@ -6,7 +6,7 @@ import { makeRunner, advance } from './program.js'
 import { mountEditor } from './editor.js'
 import { UNTITLED, blank, unpack, saveFile, openFile } from './files.js'
 
-const START = { x: 1181, y: 120, heading: Math.PI / 2 }
+const START = { x: 1181, y: 160, heading: Math.PI / 2 }
 const FILE_KEY = 'vro:file'
 
 const editor = mountEditor(document.querySelector('#editor'))
