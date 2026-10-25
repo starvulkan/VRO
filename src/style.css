@@ -1,3 +1,5 @@
+@import url('https://googleapis.com');
+
 :root {
   --ink: #0B0910;
   --line: #2B2340;
@@ -19,7 +21,7 @@ body {
   margin: 0;
   background: var(--ink);
   color: var(--text);
-  font-family: system-ui, sans-serif;
+  font-family: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, "Segoe UI Mono", monospace;
 }
 
 .home {
@@ -66,7 +68,7 @@ body {
   background: var(--panel);
   color: var(--text);
   font: inherit;
-  text-align: left;
+  text-align: center;
   text-decoration: none;
   cursor: pointer;
   transition: border-color 0.15s, transform 0.15s;
@@ -104,7 +106,6 @@ body {
   right: 1rem;
   padding: 0.15rem 0.55rem;
   border: 1px solid var(--line);
-  border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.1em;
