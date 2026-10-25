@@ -6,6 +6,7 @@ import { mountEditor } from './editor.js'
 import { UNTITLED, blank, unpack, saveFile, openFile } from './files.js'
 import { DEVICES, FACING_ANGLE, normalize, geometry, circumference } from './config.js'
 import { mountConfigurator } from './configurator.js'
+import { outline, keepInside } from './collide.js'
 import {
   MAX_DPS, makeHub, stepMotors, stopMotors,
   readColor, readDistance, readForce, relativeAngle,
@@ -56,6 +57,7 @@ export async function mountBuild(root) {
   let config = loadRobot()
   let robot = null
   let hub = null
+  let shape = null
   let runner = null
   let running = false
   let active = false
@@ -64,6 +66,7 @@ export async function mountBuild(root) {
   function place(pose) {
     robot = makeRobot({ ...pose, ...geometry(config) })
     hub = makeHub(config, robot, pixels)
+    shape = outline(config)
   }
 
   place(START)
@@ -333,6 +336,9 @@ export async function mountBuild(root) {
         if (runner.done) stop('Finished')
     }
     step(robot, dt)
+
+    keepInside(robot, shape)
+
     stepMotors(hub, dt)
 
     ctx.drawImage(mat, 0, 0, canvas.width, canvas.height)
