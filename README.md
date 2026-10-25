@@ -25,14 +25,14 @@ VRO is a web app to help you discover the world of robotics! Configure and progr
 1. VRO Season 2026-27 game mat.
 2. Functional block-based robot coder with basic block types. (Based on Blockly!)
 3. Code file saving, using the `.vro` file format.
+4. Mechanical robot configurator.
+5. More code blocks (more sensors, motors, plotting, etc).
 
 ## Still to come:
 
-1. Mechanical robot configurator.
-2. More code blocks (more sensors, motors, plotting, etc).
-3. Scoring round mode for VRO's seasonal game mats.
-4. Global leaderboards for the current VRO season challenge.
-5. Time/measurement simulation mode, with the possibility to add any custom game mat (to run simulations for WRO, FLL, etc).
+1. Scoring round mode for VRO's seasonal game mats.
+2. Global leaderboards for the current VRO season challenge.
+3. Time/measurement simulation mode, with the possibility to add any custom game mat (to run simulations for WRO, FLL, etc).
 
 
 
