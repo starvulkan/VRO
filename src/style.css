@@ -4,6 +4,7 @@
   --text: #E8E4F2;
   --panel: #18132A;
   --accent: #A06BFF;
+  --accentButDarker: #430F59;
 }
 
 * {
@@ -83,7 +84,7 @@ body {
 
 .mode--build {
   border-color: var(--accent);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 24%, var(--panel)), var(--panel) 70%);
+  background: var(--accentButDarker)
 }
 
 .mode__name {
