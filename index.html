@@ -6,8 +6,36 @@
     <title>VRO</title>
   </head>
   <body>
-    <main class="stage">
+    <main class="home" id="home" hidden>
+      <img class="home__logo" src="./brand/vro-on-dark.png" alt="VRO, Virtual Robotics Olympiad" />
+      <p class="home__season">Rays of Light</p>
+
+      <nav class="home__modes">
+        <a class="mode mode--build" href="#/build">
+          <span class="mode__name">Build &amp; Test</span>
+          <span class="mode__text">Program your robot and try it out on the mat.</span>
+        </a>
+        <button class="mode" type="button" disabled>
+          <span class="mode__soon">Soon</span>
+          <span class="mode__name">Competition Round</span>
+          <span class="mode__text">Official timed runs that count for the leaderboard.</span>
+        </button>
+        <button class="mode" type="button" disabled>
+          <span class="mode__soon">Soon</span>
+          <span class="mode__name">Leaderboards</span>
+          <span class="mode__text">Global rankings, seasons and the Hall of Fame.</span>
+        </button>
+      </nav>
+
+      <button class="home__settings" type="button" disabled>Settings</button>
+    </main>
+
+    <main class="stage" id="build" hidden>
       <div class="controls">
+        <a class="home-link" href="#/">Home</a>
+
+        <span class="divider"></span>
+
         <button id="run" type="button">Run</button>
         <button id="stop" type="button">Stop</button>
         <button id="reset" type="button">Reset</button>
@@ -23,10 +51,18 @@
         <span class="status" id="status">Ready</span>
       </div>
       <div class="layout">
-        <div class="editor" id="editor"></div>
+        <div class="panel">
+          <div class="tabs">
+            <button class="tab is-on" id="tab-program" type="button">Program</button>
+            <button class="tab" id="tab-robot" type="button">Robot</button>
+          </div>
+          <div class="editor" id="editor"></div>
+          <div class="robot-panel" id="robot-panel" hidden></div>
+        </div>
         <canvas id="field"></canvas>
       </div>
     </main>
+    
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

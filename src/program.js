@@ -1,6 +1,5 @@
 import { drive } from './robot.js'
 import { setSpeed, setRotationDistance, toDistance, wheelSpeeds, travelled } from './drive.js'
-import { procedures } from 'blockly'
 
 const YIELD = Symbol('yield')
 const RAD = Math.PI / 180

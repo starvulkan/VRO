@@ -1,5 +1,5 @@
 const FORMAT = 'vro'
-const VERSION = 1
+const VERSION = 2
 const EXTENSION = '.vro'
 
 export const UNTITLED = 'untitled'
@@ -21,8 +21,8 @@ export function baseName(filename) {
     return filename.replace(/\.vro$/i, '')
 }
 
-export function pack(workspace) {
-    const file = { format: FORMAT, version: VERSION, saved: new Date().toISOString(), workspace }
+export function pack({ workspace, robot }) {
+    const file = { format: FORMAT, version: VERSION, saved: new Date().toISOString(), robot, workspace }
     return JSON.stringify(file, null, 2)
 }
 
@@ -40,7 +40,7 @@ export function unpack(text) {
     if (data.version > VERSION) {
         throw new Error('This program was saved by a newer version of VRO.')
     }
-    return data.workspace
+    return { workspace: data.workspace, robot: data.robot ?? null }
 }
 
 function download(text, filename) {
@@ -54,8 +54,8 @@ function download(text, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export async function saveFile(workspace, { name, handle, as }) {
-    const text = pack(workspace)
+export async function saveFile(project, { name, handle, as }) {
+    const text = pack(project)
 
     if (canPick) {
         let target = as ? null : handle
