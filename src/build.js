@@ -6,6 +6,10 @@ import { mountEditor } from './editor.js'
 import { UNTITLED, blank, unpack, saveFile, openFile } from './files.js'
 import { DEVICES, FACING_ANGLE, normalize, geometry, circumference } from './config.js'
 import { mountConfigurator } from './configurator.js'
+import {
+  MAX_DPS, makeHub, stepMotors, stopMotors,
+  readColor, readDistance, readForce, relativeAngle,
+} from './hardware.js'
 
 const START = { x: 1181, y: 160, heading: Math.PI / 2 }
 const FILE_KEY = 'vro:file'
@@ -22,6 +26,14 @@ export async function mountBuild(root) {
 
   const ctx = canvas.getContext('2d')
   const view = makeView(canvas)
+
+  const mat = await loadImage(MAT.image)
+  const sheet = document.createElement('canvas')
+  sheet.width = MAT.width
+  sheet.height = MAT.height
+  const sheetCtx = sheet.getContext('2d', { willReadFrequently: true })
+  sheetCtx.drawImage(mat, 0, 0, MAT.width, MAT.height)
+  const pixels = sheetCtx.getImageData(0, 0, MAT.width, MAT.height).data
 
   const runButton = $('#run')
   const stopButton = $('#stop')
@@ -42,11 +54,19 @@ export async function mountBuild(root) {
   }
 
   let config = loadRobot()
-  let robot = makeRobot({ ...START, ...geometry(config) })
+  let robot = null
+  let hub = null
   let runner = null
   let running = false
   let active = false
   let raf = 0
+
+  function place(pose) {
+    robot = makeRobot({ ...pose, ...geometry(config) })
+    hub = makeHub(config, robot, pixels)
+  }
+
+  place(START)
 
   function show(text) {
     statusText.textContent = text
@@ -63,7 +83,9 @@ export async function mountBuild(root) {
       return
     }
 
-    runner = makeRunner(robot, makeDrivebase({ circumference: circumference(config) }), program)
+    const wheel = circumference(config)
+    const base = makeDrivebase({ circumference: wheel, maxSpeed: (MAX_DPS / 360) * wheel })
+    runner = makeRunner(robot, base, program, hub)
     running = true
     show('Running')
   }
@@ -71,12 +93,13 @@ export async function mountBuild(root) {
   function stop(text = 'Stopped') {
     running = false
     drive(robot, 0, 0)
+    stopMotors(hub)
     show(text)
   }
 
   function reset() {
     stop('Ready')
-    robot = makeRobot({ ...START, ...geometry(config) })
+    place(START)
   }
 
   runButton.addEventListener('click', run)
@@ -90,7 +113,7 @@ export async function mountBuild(root) {
     } catch (error) {
       console.warn('robot: could not remember the robot', error)
     }
-    if (!running) robot = makeRobot({ x: robot.x, y: robot.y, heading: robot.heading, ...geometry(config) })
+    if (!running) place({ x: robot.x, y: robot.y, heading: robot.heading })
   }
 
   const configurator = mountConfigurator($('#robot-panel'), {
@@ -112,6 +135,12 @@ export async function mountBuild(root) {
   tabs.program.addEventListener('click', () => showTab('program'))
   tabs.robot.addEventListener('click', () => showTab('robot'))
 
+  const rules = $('#rules')
+  $('#info').addEventListener('click', () => rules.showModal())
+  $('#rules-close').addEventListener('click', () => rules.close())
+  rules.addEventListener('click', (event) => {
+    if (event.target === rules) rules.close()
+  })
 
   const project = () => ({ workspace: editor.state(), robot: config })
   const current = () => JSON.stringify(project())
@@ -207,8 +236,6 @@ export async function mountBuild(root) {
     }
   })
 
-  const mat = await loadImage(MAT.image)
-
   function drawRobot() {
     const [sx, sy] = view.toScreen(robot.x, robot.y)
     const s = view.scale
@@ -250,9 +277,49 @@ export async function mountBuild(root) {
 
       ctx.fillStyle = tint
       ctx.fillRect(x - (size / 2) * s, y - (size / 2) * s, size * s, size * s)
+
+      if (device.type === 'motor') {
+        const turn = (relativeAngle(hub, device.port) * Math.PI) / 180
+        ctx.strokeStyle = '#FFFFFF'
+        ctx.lineWidth = 4 * s
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + Math.cos(turn) * (size / 2) * s, y + Math.sin(turn) * (size / 2) * s)
+        ctx.stroke()
+      }
     }
 
     ctx.restore()
+  }
+
+  const readings = $('#readings')
+  let lastReading = 0
+
+  function reading(port, text) {
+    return `<span class="reading"><b>${port}</b>${text}</span>`
+  }
+
+  function showReadings(now) {
+    if (now - lastReading < 100) return
+    lastReading = now
+
+    const chips = []
+    for (const [port, side] of [[config.drive.left, 'left'], [config.drive.right, 'right']]) {
+      chips.push(reading(port, `${side} wheel · ${Math.round(relativeAngle(hub, port))}°`))
+    }
+    for (const device of config.devices) {
+      if (device.type === 'color') {
+        const { color, reflection } = readColor(hub, device.port)
+        chips.push(reading(device.port, `${color} · ${reflection}%`))
+      } else if (device.type === 'distance') {
+        chips.push(reading(device.port, `${readDistance(hub, device.port)} cm`))
+      } else if (device.type === 'force') {
+        chips.push(reading(device.port, `${readForce(hub, device.port)}%`))
+      } else {
+        chips.push(reading(device.port, `motor · ${Math.round(relativeAngle(hub, device.port))}°`))
+      }
+    }
+    readings.innerHTML = chips.join('')
   }
 
   let last = performance.now()
@@ -266,9 +333,12 @@ export async function mountBuild(root) {
         if (runner.done) stop('Finished')
     }
     step(robot, dt)
+    stepMotors(hub, dt)
 
     ctx.drawImage(mat, 0, 0, canvas.width, canvas.height)
     drawRobot()
+
+    showReadings(now)
 
     raf = requestAnimationFrame(frame)
   }

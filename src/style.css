@@ -1,4 +1,4 @@
-@import url('https://googleapis.com');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap');
 
 :root {
   --ink: #0B0910;
@@ -413,4 +413,119 @@ canvas {
   width: 100%;
   height: auto;
   border: 1px solid var(--line);
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-self: start;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.info {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  display: grid;
+  place-items: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 80%, transparent);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.info:hover {
+  border-color: var(--accent);
+}
+
+.info svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.info .info__dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+.readings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-height: 1.8rem;
+}
+
+.reading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.6rem 0.25rem 0.3rem;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reading b {
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 0.75rem;
+}
+
+.rules {
+  width: min(60rem, 92vw);
+  height: 88vh;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--text);
+}
+
+.rules[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.rules::backdrop {
+  background: rgb(0 0 0 / 0.6);
+}
+
+.rules__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--line);
+  font-weight: 700;
+}
+
+.rules__bar button {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rules iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
 }

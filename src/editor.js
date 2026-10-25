@@ -50,6 +50,20 @@ const OPERATORS = {
     vro_contains: 'contains',
 }
 
+const READINGS = {
+  vro_color: 'color',
+  vro_is_color: 'isColor',
+  vro_reflection: 'reflection',
+  vro_reflection_is: 'reflectionIs',
+  vro_distance: 'distance',
+  vro_distance_is: 'distanceIs',
+  vro_pressure: 'pressure',
+  vro_is_pressed: 'pressed',
+  vro_motor_position: 'motorPosition',
+  vro_motor_relative: 'motorRelative',
+  vro_motor_speed: 'motorSpeed',
+}
+
 function input(block, name) {
     return expression(block.getInputTargetBlock(name))
 }
@@ -71,6 +85,20 @@ function expression(block) {
           return { r: 'angle', axis: block.getFieldValue('AXIS') }
         case 'vro_math':
           return { r: 'math', fn: block.getFieldValue('FN'), a: input(block, 'A') }
+    }
+
+    const reading = READINGS[block.type]
+    if (reading) {
+      const field = (name) => (block.getField(name) ? block.getFieldValue(name) : null)
+      return {
+        r: reading,
+        port: field('PORT'),
+        color: field('COLOR'),
+        cmp: field('CMP'),
+        state: field('STATE'),
+        unit: field('UNIT'),
+        a: input(block, 'A'),
+      }
     }
 
     const r = OPERATORS[block.type]
@@ -148,6 +176,19 @@ function compileBlock(block) {
       return { op: 'resetTimer' }
     case 'vro_set_yaw':
       return { op: 'setYaw', value: value('VALUE') }
+
+    case 'vro_motor_run':
+      return { op: 'motorRun', port: field('PORT'), direction: field('DIRECTION'), amount: value('AMOUNT'), unit: field('UNIT') }
+    case 'vro_motor_goto':
+      return { op: 'motorGoTo', port: field('PORT'), way: field('WAY'), position: value('POSITION') }
+    case 'vro_motor_start':
+      return { op: 'motorStart', port: field('PORT'), direction: field('DIRECTION') }
+    case 'vro_motor_stop':
+      return { op: 'motorStop', port: field('PORT') }
+    case 'vro_motor_set_speed':
+      return { op: 'motorSetSpeed', port: field('PORT'), percent: value('PERCENT') }
+    case 'vro_motor_set_relative':
+      return { op: 'motorSetRelative', port: field('PORT'), value: value('VALUE') }
 
     case 'procedures_callnoreturn':
       return { op: 'call', name: block.getProcedureCall(), args: argumentsOf(block).map((name) => value(name)) }

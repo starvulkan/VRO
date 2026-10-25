@@ -1,6 +1,6 @@
 export const MAT = {
     name: 'Rays of Light',
-    image: './mats/rays-of-light.png',
+    image: './mats/rays-of-light.webp',
     width: 2362,
     height: 1143,
 }

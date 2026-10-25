@@ -1,5 +1,10 @@
 import { drive } from './robot.js'
 import { setSpeed, setRotationDistance, toDistance, wheelSpeeds, travelled } from './drive.js'
+import {
+  readColor, readDistance, readForce, distanceIn,
+  isMotor, powerMotor, motorAngle, motorSpeed, motorSetting, setMotorSetting,
+  snapMotor, relativeAngle, setRelative, stopMotors,
+} from './hardware.js'
 
 const YIELD = Symbol('yield')
 const RAD = Math.PI / 180
@@ -71,6 +76,10 @@ function scopeOf(runner, name) {
   return runner.vars
 }
 
+function wrap360(degrees) {
+  return ((Math.round(degrees) % 360) + 360) % 360
+}
+
 function yaw(runner) {
   const degrees = ((runner.robot.heading - runner.yawZero) / RAD) * YAW_SIGN
   return Math.round(((((degrees + 180) % 360) + 360) % 360) - 180)
@@ -92,6 +101,45 @@ export function evaluate(runner, e) {
           return runner.clock - runner.timerStart
         case 'angle':
           return e.axis === 'yaw' ? yaw(runner) : 0
+
+        case 'color':
+          return readColor(runner.hub, e.port).color
+        case 'isColor':
+          return readColor(runner.hub, e.port).color === e.color
+        case 'reflection':
+          return readColor(runner.hub, e.port).reflection
+        case 'reflectionIs': {
+          const light = readColor(runner.hub, e.port).reflection
+          const target = n(e.a)
+          if (e.cmp === '<') return light < target
+          if (e.cmp === '>') return light > target
+          return light === Math.round(target)
+        }
+        case 'distance':
+          return distanceIn(readDistance(runner.hub, e.port), e.unit)
+        case 'distanceIs': {
+          const distance = distanceIn(readDistance(runner.hub, e.port), e.unit)
+          const target = n(e.a)
+          if (e.cmp === 'closer') return distance < target
+          if (e.cmp === 'farther') return distance > target
+          return Math.abs(distance - target) <= 0.5
+        }
+        case 'pressure': {
+          const force = readForce(runner.hub, e.port)
+          return e.unit === 'newtons' ? force / 10 : force
+        }
+        case 'pressed': {
+          const force = readForce(runner.hub, e.port)
+          if (e.state === 'released') return force === 0
+          if (e.state === 'hard') return force >= 80
+          return force > 0
+        }
+        case 'motorPosition':
+          return wrap360(motorAngle(runner.hub, e.port))
+        case 'motorRelative':
+          return Math.round(relativeAngle(runner.hub, e.port))
+        case 'motorSpeed':
+          return motorSpeed(runner.hub, e.port)
 
         case 'add':
             return n(e.a) + n(e.b)
@@ -148,10 +196,11 @@ export function evaluate(runner, e) {
     }
 }
 
-export function makeRunner(robot, base, program) {
+export function makeRunner(robot, base, program, hub) {
   return {
     robot,
     base,
+    hub,
     threads: program.stacks.map((body) => ({
       stack: [{ kind: 'seq', body, index: 0 }],
       active: null,
@@ -190,6 +239,22 @@ function nextStep(runner, thread) {
     thread.stack.pop()
   }
   return null
+}
+
+function runMotor(runner, thread, port, sign, amount, unit) {
+  const { hub } = runner
+  const power = sign * motorSetting(hub, port)
+  if (!isMotor(hub, port) || power === 0) return
+
+  powerMotor(hub, port, power)
+
+  if (unit === 'seconds') {
+    thread.active = { kind: 'timed', until: runner.clock + amount, port }
+    return
+  }
+
+  const target = unit === 'rotations' ? amount * 360 : amount
+  thread.active = { kind: 'turn', port, from: motorAngle(hub, port), target, direction: Math.sign(power) }
 }
 
 function begin(runner, thread, cmd) {
@@ -269,6 +334,7 @@ function begin(runner, thread, cmd) {
         for (const other of runner.threads) other.done = true
         runner.done = true
         drive(robot, 0, 0)
+        stopMotors(runner.hub)
       } else if (cmd.what === 'exit') {
         while (thread.stack.length > 0) {
           if (thread.stack.pop().kind === 'call') break
@@ -298,6 +364,34 @@ function begin(runner, thread, cmd) {
       runner.yawZero = robot.heading - num(cmd.value) * YAW_SIGN * RAD
       return
 
+    case 'motorRun': {
+      const amount = num(cmd.amount)
+      const sign = (cmd.direction === 'counterclockwise' ? -1 : 1) * (amount < 0 ? -1 : 1)
+      runMotor(runner, thread, cmd.port, sign, Math.abs(amount), cmd.unit)
+      return
+    }
+    case 'motorGoTo': {
+      const now = wrap360(motorAngle(runner.hub, cmd.port))
+      const target = wrap360(num(cmd.position))
+      let delta = ((target - now + 540) % 360) - 180
+      if (cmd.way === 'clockwise') delta = (target - now + 360) % 360
+      if (cmd.way === 'counterclockwise') delta = -((now - target + 360) % 360)
+      if (delta !== 0) runMotor(runner, thread, cmd.port, Math.sign(delta), Math.abs(delta), 'degrees')
+      return
+    }
+    case 'motorStart':
+      powerMotor(runner.hub, cmd.port, (cmd.direction === 'counterclockwise' ? -1 : 1) * motorSetting(runner.hub, cmd.port))
+      return
+    case 'motorStop':
+      powerMotor(runner.hub, cmd.port, 0)
+      return
+    case 'motorSetSpeed':
+      setMotorSetting(runner.hub, cmd.port, num(cmd.percent))
+      return
+    case 'motorSetRelative':
+      setRelative(runner.hub, cmd.port, num(cmd.value))
+      return
+
     case 'call': {
       const procedure = runner.procedures[cmd.name]
       if (!procedure || thread.stack.length > 200) return
@@ -322,6 +416,9 @@ function finished(runner, thread) {
   if (active.kind === 'until') {
     return truthy(evaluate(runner, active.cond))
   }
+  if (active.kind === 'turn') {
+    return Math.abs(motorAngle(runner.hub, active.port) - active.from) >= active.target
+  }
   return true
 }
 
@@ -332,8 +429,13 @@ function tick(runner, thread) {
   while (!thread.done && budget-- > 0) {
     if (!finished(runner, thread)) return
 
-    const kind = thread.active?.kind
-    if (kind === 'timed' || kind === 'distance') drive(runner.robot, 0, 0)
+    const active = thread.active
+    if (active?.port) {
+      powerMotor(runner.hub, active.port, 0)
+      if (active.kind === 'turn') snapMotor(runner.hub, active.port, active.from + active.direction * active.target)
+    } else if (active?.kind === 'timed' || active?.kind === 'distance') {
+      drive(runner.robot, 0, 0)
+    }
     thread.active = null
 
     const cmd = nextStep(runner, thread)
@@ -361,5 +463,6 @@ export function advance(runner, dt) {
   if (runner.threads.every((thread) => thread.done)) {
     runner.done = true
     drive(runner.robot, 0, 0)
+    stopMotors(runner.hub)
   }
 }

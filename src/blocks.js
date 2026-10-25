@@ -17,8 +17,15 @@ const DIRECTIONS = [
 ]
 
 const MATH = ['abs', 'floor', 'ceiling', 'sqrt', 'sin', 'cos', 'tan', 'asin', 'acos', 'atan', 'ln', 'log', 'e^', '10^']
+const PORTS = ['A', 'B', 'C', 'D', 'E', 'F']
+const SPIN = [['clockwise', 'clockwise'], ['counterclockwise', 'counterclockwise']]
+const MOTOR_UNITS = [['rotations', 'rotations'], ['degrees', 'degrees'], ['seconds', 'seconds']]
+const WAYS = [['shortest path', 'shortest'], ['clockwise', 'clockwise'], ['counterclockwise', 'counterclockwise']]
+const COLORS = ['red', 'green', 'blue', 'yellow', 'black', 'white', 'violet', 'azure']
+const DISTANCE_UNITS = [['cm', 'cm'], ['inches', 'inches'], ['%', '%']]
 
 const slot = (name) => ({ type: 'input_value', name })
+const port = () => ({ type: 'field_dropdown', name: 'PORT', options: PORTS.map((p) => [p, p]) })
 const condition = (name) => ({ type: 'input_value', name, check: 'Boolean' })
 const mouth = (name) => ({ type: 'input_statement', name })
 const dropdown = (name, options) => ({ type: 'field_dropdown', name, options })
@@ -135,6 +142,26 @@ Blockly.common.defineBlocksWithJsonArray([
   reporter('vro_angle', '%1 angle', [dropdown('AXIS', [['yaw', 'yaw'], ['pitch', 'pitch'], ['roll', 'roll']])], 'vro_sensors'),
   command('vro_set_yaw', 'set yaw angle to %1', [slot('VALUE')], 'vro_sensors'),
 
+  predicate('vro_is_color', '%1 is color %2 ?', [port(), dropdown('COLOR', [...COLORS.map((c) => [c, c]), ['no color', 'none']])], 'vro_sensors'),
+  reporter('vro_color', '%1 color', [port()], 'vro_sensors'),
+  predicate('vro_reflection_is', '%1 reflection %2 %3 %% ?', [port(), dropdown('CMP', [['<', '<'], ['>', '>'], ['=', '=']]), slot('A')], 'vro_sensors'),
+  reporter('vro_reflection', '%1 reflected light', [port()], 'vro_sensors'),
+  predicate('vro_is_pressed', '%1 is %2 ?', [port(), dropdown('STATE', [['pressed', 'pressed'], ['hard-pressed', 'hard'], ['released', 'released']])], 'vro_sensors'),
+  reporter('vro_pressure', '%1 pressure in %2', [port(), dropdown('UNIT', [['%', '%'], ['newtons', 'newtons']])], 'vro_sensors'),
+  predicate('vro_distance_is', '%1 is %2 %3 %4 ?', [port(), dropdown('CMP', [['closer than', 'closer'], ['farther than', 'farther'], ['exactly at', 'exactly']]), slot('A'), dropdown('UNIT', DISTANCE_UNITS)], 'vro_sensors'),
+  reporter('vro_distance', '%1 distance in %2', [port(), dropdown('UNIT', DISTANCE_UNITS)], 'vro_sensors'),
+
+  // motors
+  command('vro_motor_run', 'run %1 %2 for %3 %4', [port(), dropdown('DIRECTION', SPIN), slot('AMOUNT'), dropdown('UNIT', MOTOR_UNITS)], 'vro_motors'),
+  command('vro_motor_goto', '%1 go %2 to position %3', [port(), dropdown('WAY', WAYS), slot('POSITION')], 'vro_motors'),
+  command('vro_motor_start', 'start motor %1 %2', [port(), dropdown('DIRECTION', SPIN)], 'vro_motors'),
+  command('vro_motor_stop', 'stop motor %1', [port()], 'vro_motors'),
+  command('vro_motor_set_speed', 'set %1 speed to %2 %%', [port(), slot('PERCENT')], 'vro_motors'),
+  reporter('vro_motor_position', '%1 position', [port()], 'vro_motors'),
+  reporter('vro_motor_relative', '%1 relative position', [port()], 'vro_motors'),
+  command('vro_motor_set_relative', 'set %1 relative position to %2', [port(), slot('VALUE')], 'vro_motors'),
+  reporter('vro_motor_speed', '%1 speed', [port()], 'vro_motors'),
+
   // operators
   reporter('vro_add', '%1 + %2', [slot('A'), slot('B')]),
   reporter('vro_sub', '%1 - %2', [slot('A'), slot('B')]),
@@ -168,6 +195,7 @@ export const theme = Blockly.Theme.defineTheme('vro', {
     variable_blocks: { colourPrimary: '#FF8C1A', colourSecondary: '#FF8000', colourTertiary: '#DB6E00' },
     math_blocks: { colourPrimary: '#59C059', colourSecondary: '#46B946', colourTertiary: '#389438' },
     procedure_blocks: { colourPrimary: '#FF6680', colourSecondary: '#FF4D6A', colourTertiary: '#E64D66' },
+    vro_motors: { colourPrimary: '#0090F5', colourSecondary: '#007ACC', colourTertiary: '#0066AA' },
   },
   categoryStyles: {
     vro_events: { colour: '#FFBF00' },
@@ -177,6 +205,7 @@ export const theme = Blockly.Theme.defineTheme('vro', {
     vro_operators: { colour: '#59C059' },
     vro_variables: { colour: '#FF8C1A' },
     vro_myblocks: { colour: '#FF6680' },
+    vro_motors: { colour: '#0090F5' },
   },
   componentStyles: {
     workspaceBackgroundColour: '#0B0910',
@@ -198,7 +227,8 @@ export const theme = Blockly.Theme.defineTheme('vro', {
 
 const num = (value) => ({ shadow: { type: 'vro_number', fields: { NUM: value } } })
 const txt = (value) => ({ shadow: { type: 'vro_text', fields: { TEXT: value } } })
-const block = (type, inputs) => (inputs ? { kind: 'block', type, inputs } : { kind: 'block', type })
+const block = (type, inputs, fields) => ({ kind: 'block', type, ...(inputs && { inputs }), ...(fields && { fields }) })
+const at = (port) => ({ PORT: port })
 
 export const toolbox = {
   kind: 'categoryToolbox',
@@ -208,6 +238,22 @@ export const toolbox = {
       name: 'Events',
       categorystyle: 'vro_events',
       contents: [block('vro_start')],
+    },
+    {
+      kind: 'category',
+      name: 'Motors',
+      categorystyle: 'vro_motors',
+      contents: [
+        block('vro_motor_run', { AMOUNT: num(1) }, at('E')),
+        block('vro_motor_goto', { POSITION: num(0) }, at('E')),
+        block('vro_motor_start', null, at('E')),
+        block('vro_motor_stop', null, at('E')),
+        block('vro_motor_set_speed', { PERCENT: num(75) }, at('E')),
+        block('vro_motor_position', null, at('E')),
+        block('vro_motor_relative', null, at('E')),
+        block('vro_motor_set_relative', { VALUE: num(0) }, at('E')),
+        block('vro_motor_speed', null, at('E')),
+      ],
     },
     {
       kind: 'category',
@@ -248,6 +294,14 @@ export const toolbox = {
         block('vro_set_yaw', { VALUE: num(0) }),
         block('vro_timer'),
         block('vro_reset_timer'),
+        block('vro_is_color', null, at('C')),
+        block('vro_color', null, at('C')),
+        block('vro_reflection_is', { A: num(50) }, at('C')),
+        block('vro_reflection', null, at('C')),
+        block('vro_distance_is', { A: num(15) }, at('D')),
+        block('vro_distance', null, at('D')),
+        block('vro_is_pressed', null, at('F')),
+        block('vro_pressure', null, at('F')),
       ],
     },
     {

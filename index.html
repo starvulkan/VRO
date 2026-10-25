@@ -4,10 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VRO</title>
+    <link rel="icon" type="image/png" href="./favicon.png" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
   </head>
   <body>
     <main class="home" id="home" hidden>
-      <img class="home__logo" src="./brand/vro-on-dark.png" alt="VRO, Virtual Robotics Olympiad" />
+      <img class="home__logo" src="./brand/vro-on-dark.webp" alt="VRO, Virtual Robotics Olympiad" />
       <p class="home__season">Rays of Light</p>
 
       <nav class="home__modes">
@@ -59,8 +61,26 @@
           <div class="editor" id="editor"></div>
           <div class="robot-panel" id="robot-panel" hidden></div>
         </div>
-        <canvas id="field"></canvas>
+        <div class="field">
+          <canvas id="field"></canvas>
+          <button class="info" id="info" type="button" aria-label="Rules for this mat" title="Rules">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="11" x2="12" y2="17" />
+              <circle class="info__dot" cx="12" cy="7.5" r="1.25" />
+            </svg>
+          </button>
+          <div class="readings" id="readings"></div>
+        </div>
       </div>
+
+      <dialog class="rules" id="rules">
+        <div class="rules__bar">
+          <span>Rays of Light: Rules</span>
+          <button id="rules-close" type="button">X</button>
+        </div>
+        <iframe src="./rules/rays-of-light.html" title="Rays of Light rules" loading="lazy"></iframe>
+      </dialog>
     </main>
     
     <script type="module" src="/src/main.js"></script>
