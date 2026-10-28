@@ -14,7 +14,13 @@
 
 VRO is a web app to help you discover the world of robotics! Configure and program a robot to complete missions on our yearly season's game mat to score points and compete globally for best score and time, or run time and measurement simulations to help your team out in competitions like WRO and First Lego League!
 
-<img width="1407" height="753" alt="Screenshot 2026-10-18 at 17 46 56" src="https://github.com/user-attachments/assets/5cbae354-f3a3-4dfd-bdbe-a87892fb670c" />
+<img width="1899" height="1041" alt="Screenshot 2026-10-25 105644" src="https://github.com/user-attachments/assets/53e576d9-f27f-431d-8fbe-c7b97ad5d9e9" />
+<sub>*Coder*</sub>
+
+---
+
+<img width="1882" height="1102" alt="Screenshot 2026-10-25 105746" src="https://github.com/user-attachments/assets/38bd8250-117e-45c3-92be-f0c4cf015325" />
+<sub>*Robot mechanical configurator*</sub>
 
 ---
 
