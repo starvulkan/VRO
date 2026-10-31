@@ -40,5 +40,7 @@ VRO is a web app to help you discover the world of robotics! Configure and progr
 2. Global leaderboards for the current VRO season challenge.
 3. Time/measurement simulation mode, with the possibility to add any custom game mat (to run simulations for WRO, FLL, etc).
 
+<h1>DEVELOPMENT FOR VRO IS CURRENTLY ON HOLD, EXPECT NO CHANGES SOON!</h1>
+
 
 
